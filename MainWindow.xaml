@@ -14,7 +14,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="7" Padding="12,7" Margin="0,0,6,6">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="7" Padding="9,6" Margin="0,0,5,6">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -213,12 +213,13 @@
                     <StackPanel Grid.Row="1" Margin="21,0,18,10">
                         <TextBlock Text="TARGET FORMAT" Foreground="#5E6375" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,6"/>
                         <WrapPanel>
-                            <RadioButton x:Name="FmtWav24" Content="WAV 24-bit" GroupName="Fmt" Style="{StaticResource PillRadio}" IsChecked="True" Checked="Setting_Changed" FontSize="12" FontWeight="Medium"/>
-                            <RadioButton x:Name="FmtWav16" Content="WAV 16-bit" GroupName="Fmt" Style="{StaticResource PillRadio}" Checked="Setting_Changed" FontSize="12" FontWeight="Medium"/>
-                            <RadioButton x:Name="FmtFlac" Content="FLAC" GroupName="Fmt" Style="{StaticResource PillRadio}" Checked="Setting_Changed" FontSize="12" FontWeight="Medium"/>
-                            <RadioButton x:Name="FmtMp3" Content="MP3 320k" GroupName="Fmt" Style="{StaticResource PillRadio}" Checked="Setting_Changed" FontSize="12" FontWeight="Medium"/>
-                            <RadioButton x:Name="FmtAiff" Content="AIFF" GroupName="Fmt" Style="{StaticResource PillRadio}" Checked="Setting_Changed" FontSize="12" FontWeight="Medium"/>
-                            <RadioButton x:Name="FmtAac" Content="AAC" GroupName="Fmt" Style="{StaticResource PillRadio}" Checked="Setting_Changed" FontSize="12" FontWeight="Medium"/>
+                            <RadioButton x:Name="FmtWav24" Content="WAV 24-bit" GroupName="Fmt" Style="{StaticResource PillRadio}" IsChecked="True" Checked="Setting_Changed" FontSize="11.5" FontWeight="Medium"/>
+                            <RadioButton x:Name="FmtWav16" Content="WAV 16-bit" GroupName="Fmt" Style="{StaticResource PillRadio}" Checked="Setting_Changed" FontSize="11.5" FontWeight="Medium"/>
+                            <RadioButton x:Name="FmtFlac16" Content="FLAC 16-bit" GroupName="Fmt" Style="{StaticResource PillRadio}" Checked="Setting_Changed" FontSize="11.5" FontWeight="Medium"/>
+                            <RadioButton x:Name="FmtFlac24" Content="FLAC 24-bit" GroupName="Fmt" Style="{StaticResource PillRadio}" Checked="Setting_Changed" FontSize="11.5" FontWeight="Medium"/>
+                            <RadioButton x:Name="FmtMp3" Content="MP3 320k" GroupName="Fmt" Style="{StaticResource PillRadio}" Checked="Setting_Changed" FontSize="11.5" FontWeight="Medium"/>
+                            <RadioButton x:Name="FmtAiff" Content="AIFF" GroupName="Fmt" Style="{StaticResource PillRadio}" Checked="Setting_Changed" FontSize="11.5" FontWeight="Medium"/>
+                            <RadioButton x:Name="FmtAac" Content="AAC" GroupName="Fmt" Style="{StaticResource PillRadio}" Checked="Setting_Changed" FontSize="11.5" FontWeight="Medium"/>
                         </WrapPanel>
                     </StackPanel>
 

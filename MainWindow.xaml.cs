@@ -497,7 +497,7 @@ public partial class MainWindow : Window
         }
 
         string filterArg = BuildFilterArgument();
-        var (ext, codecArg, suffix) = GetFormatArguments();
+        var (ext, codecArg, suffix, fmtLabel) = GetFormatArguments();
 
         StatusText.Text = $"Processing {Tasks.Count} file(s)...";
         int successCount = 0;
@@ -518,7 +518,7 @@ public partial class MainWindow : Window
             if (ok)
             {
                 item.OutputPath = outPath;
-                item.Status = $"Done ({ext.ToUpperInvariant().TrimStart('.')})";
+                item.Status = $"Done ({fmtLabel})";
                 item.StatusColor = "#4ADE80";
                 successCount++;
             }
@@ -609,18 +609,19 @@ public partial class MainWindow : Window
         return filters.Count > 0 ? $"-af \"{string.Join(",", filters)}\"" : "";
     }
 
-    private (string ext, string codec, string suffix) GetFormatArguments()
+    private (string ext, string codec, string suffix, string label) GetFormatArguments()
     {
         string modeSuffix = ModeConvert.IsChecked == true ? "_Converted" : "_Mastered";
 
-        if (FmtWav24.IsChecked == true) return (".wav", "-ar 44100 -ac 2 -c:a pcm_s24le", modeSuffix);
-        if (FmtWav16.IsChecked == true) return (".wav", "-ar 44100 -ac 2 -c:a pcm_s16le", modeSuffix);
-        if (FmtFlac.IsChecked == true)  return (".flac", "-ar 44100 -ac 2 -c:a flac -compression_level 8", modeSuffix);
-        if (FmtMp3.IsChecked == true)   return (".mp3", "-ar 44100 -ac 2 -c:a libmp3lame -b:a 320k", modeSuffix);
-        if (FmtAiff.IsChecked == true)  return (".aiff", "-ar 44100 -ac 2 -c:a pcm_s24be", modeSuffix);
-        if (FmtAac.IsChecked == true)   return (".m4a", "-ar 44100 -ac 2 -c:a aac -b:a 256k", modeSuffix);
+        if (FmtWav24.IsChecked == true)  return (".wav", "-ar 44100 -ac 2 -c:a pcm_s24le", modeSuffix, "WAV 24");
+        if (FmtWav16.IsChecked == true)  return (".wav", "-ar 44100 -ac 2 -c:a pcm_s16le", modeSuffix, "WAV 16");
+        if (FmtFlac16.IsChecked == true) return (".flac", "-ar 44100 -ac 2 -sample_fmt s16 -c:a flac -compression_level 8", modeSuffix, "FLAC 16");
+        if (FmtFlac24.IsChecked == true) return (".flac", "-ar 44100 -ac 2 -sample_fmt s32 -bits_per_raw_sample 24 -c:a flac -compression_level 8", modeSuffix, "FLAC 24");
+        if (FmtMp3.IsChecked == true)    return (".mp3", "-ar 44100 -ac 2 -c:a libmp3lame -b:a 320k", modeSuffix, "MP3");
+        if (FmtAiff.IsChecked == true)   return (".aiff", "-ar 44100 -ac 2 -c:a pcm_s24be", modeSuffix, "AIFF");
+        if (FmtAac.IsChecked == true)    return (".m4a", "-ar 44100 -ac 2 -c:a aac -b:a 256k", modeSuffix, "AAC");
 
-        return (".wav", "-ar 44100 -ac 2 -c:a pcm_s24le", modeSuffix);
+        return (".wav", "-ar 44100 -ac 2 -c:a pcm_s24le", modeSuffix, "WAV 24");
     }
 
     private static string BuildOutputPath(string inputPath, string suffix, string ext)
