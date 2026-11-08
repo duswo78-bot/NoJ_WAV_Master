@@ -1,7 +1,7 @@
 <Window x:Class="NoJ_WAV_Master.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="NoJ WAV Master v1" Height="740" Width="560"
+        Title="NoJ WAV Master v1.8 QC" Height="815" Width="560"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         WindowStartupLocation="CenterScreen" FontFamily="Segoe UI Variable Display, Segoe UI">
 
@@ -133,7 +133,7 @@
                     </Border>
                     <TextBlock Text="NoJ WAV Master" Foreground="#F3F4F6" FontSize="14.5" FontWeight="SemiBold" VerticalAlignment="Center"/>
                     <Border Background="#1D202A" CornerRadius="4" Padding="6,2" Margin="8,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="v1" Foreground="#7C85F2" FontSize="11" FontWeight="Medium"/>
+                        <TextBlock Text="v1.8 QC" Foreground="#7C85F2" FontSize="11" FontWeight="Medium"/>
                     </Border>
                 </StackPanel>
 
@@ -177,19 +177,19 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="44"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <StackPanel Grid.Row="0" Margin="18,4,18,10">
                         <TextBlock Text="PROCESSING ENGINE" Foreground="#5E6375" FontSize="10.5" FontWeight="Bold" Margin="4,0,0,5"/>
                         <UniformGrid Columns="4">
-                            <RadioButton x:Name="ModeClean" GroupName="Mode" Style="{StaticResource ModeCard}" IsChecked="True">
+                            <RadioButton x:Name="ModeClean" GroupName="Mode" Style="{StaticResource ModeCard}" IsChecked="True" Checked="Setting_Changed">
                                 <StackPanel>
                                     <TextBlock Text="Clean Master" FontSize="12" FontWeight="SemiBold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
                                     <TextBlock Text="20-18k · -1dB" FontSize="10.5" Foreground="#686E82" Margin="0,3,0,0"/>
                                 </StackPanel>
                             </RadioButton>
-                            <RadioButton x:Name="ModeLoud" GroupName="Mode" Style="{StaticResource ModeCard}">
+                            <RadioButton x:Name="ModeLoud" GroupName="Mode" Style="{StaticResource ModeCard}" Checked="Setting_Changed">
                                 <StackPanel>
                                     <TextBlock Text="Loud (-14)" FontSize="12" FontWeight="SemiBold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
                                     <TextBlock Text="Stream Std" FontSize="10.5" Foreground="#686E82" Margin="0,3,0,0"/>
@@ -201,7 +201,7 @@
                                     <TextBlock Text="Custom Rack" FontSize="10.5" Foreground="#7C85F2" Margin="0,3,0,0"/>
                                 </StackPanel>
                             </RadioButton>
-                            <RadioButton x:Name="ModeConvert" GroupName="Mode" Style="{StaticResource ModeCard}">
+                            <RadioButton x:Name="ModeConvert" GroupName="Mode" Style="{StaticResource ModeCard}" Checked="Setting_Changed">
                                 <StackPanel>
                                     <TextBlock Text="Convert Only" FontSize="12" FontWeight="SemiBold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
                                     <TextBlock Text="Bypass FX" FontSize="10.5" Foreground="#686E82" Margin="0,3,0,0"/>
@@ -213,12 +213,12 @@
                     <StackPanel Grid.Row="1" Margin="21,0,18,10">
                         <TextBlock Text="TARGET FORMAT" Foreground="#5E6375" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,6"/>
                         <WrapPanel>
-                            <RadioButton x:Name="FmtWav24" Content="WAV 24-bit" GroupName="Fmt" Style="{StaticResource PillRadio}" IsChecked="True" FontSize="12" FontWeight="Medium"/>
-                            <RadioButton x:Name="FmtWav16" Content="WAV 16-bit" GroupName="Fmt" Style="{StaticResource PillRadio}" FontSize="12" FontWeight="Medium"/>
-                            <RadioButton x:Name="FmtFlac" Content="FLAC" GroupName="Fmt" Style="{StaticResource PillRadio}" FontSize="12" FontWeight="Medium"/>
-                            <RadioButton x:Name="FmtMp3" Content="MP3 320k" GroupName="Fmt" Style="{StaticResource PillRadio}" FontSize="12" FontWeight="Medium"/>
-                            <RadioButton x:Name="FmtAiff" Content="AIFF" GroupName="Fmt" Style="{StaticResource PillRadio}" FontSize="12" FontWeight="Medium"/>
-                            <RadioButton x:Name="FmtAac" Content="AAC" GroupName="Fmt" Style="{StaticResource PillRadio}" FontSize="12" FontWeight="Medium"/>
+                            <RadioButton x:Name="FmtWav24" Content="WAV 24-bit" GroupName="Fmt" Style="{StaticResource PillRadio}" IsChecked="True" Checked="Setting_Changed" FontSize="12" FontWeight="Medium"/>
+                            <RadioButton x:Name="FmtWav16" Content="WAV 16-bit" GroupName="Fmt" Style="{StaticResource PillRadio}" Checked="Setting_Changed" FontSize="12" FontWeight="Medium"/>
+                            <RadioButton x:Name="FmtFlac" Content="FLAC" GroupName="Fmt" Style="{StaticResource PillRadio}" Checked="Setting_Changed" FontSize="12" FontWeight="Medium"/>
+                            <RadioButton x:Name="FmtMp3" Content="MP3 320k" GroupName="Fmt" Style="{StaticResource PillRadio}" Checked="Setting_Changed" FontSize="12" FontWeight="Medium"/>
+                            <RadioButton x:Name="FmtAiff" Content="AIFF" GroupName="Fmt" Style="{StaticResource PillRadio}" Checked="Setting_Changed" FontSize="12" FontWeight="Medium"/>
+                            <RadioButton x:Name="FmtAac" Content="AAC" GroupName="Fmt" Style="{StaticResource PillRadio}" Checked="Setting_Changed" FontSize="12" FontWeight="Medium"/>
                         </WrapPanel>
                     </StackPanel>
 
@@ -229,8 +229,8 @@
                                 <Border Width="44" Height="44" CornerRadius="22" Background="#191C26" Margin="0,0,0,10">
                                     <Path Data="M12,16 L12,6 M12,6 L8,10 M12,6 L16,10 M5,18 L19,18" Stroke="#7C85F2" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="-2,-2,0,0"/>
                                 </Border>
-                                <TextBlock Text="Drop audio files here or click to browse" Foreground="#D5D8E2" FontSize="13" FontWeight="Medium" HorizontalAlignment="Center"/>
-                                <TextBlock Text="Click any completed track to preview Before / After &amp; Waveform" Foreground="#606578" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                                <TextBlock Text="Drop audio files here or click to add tracks" Foreground="#D5D8E2" FontSize="13" FontWeight="Medium" HorizontalAlignment="Center"/>
+                                <TextBlock Text="Adjust engine &amp; FX settings, then press Start Mastering below" Foreground="#606578" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/>
                             </StackPanel>
 
                             <ListBox x:Name="FileList" Background="Transparent" BorderThickness="0" Padding="10" Visibility="Collapsed" SelectionChanged="FileList_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
@@ -274,11 +274,12 @@
                         </Grid>
                     </Border>
 
-                    <Border Grid.Row="3" Margin="21,0,21,8" Background="#13151D" BorderBrush="#232734" BorderThickness="1" CornerRadius="11" Padding="14,12">
+                    <Border Grid.Row="3" Margin="21,0,21,8" Background="#13151D" BorderBrush="#232734" BorderThickness="1" CornerRadius="11" Padding="14,10">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="56"/>
+                                <RowDefinition Height="64"/>
+                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
@@ -294,7 +295,7 @@
                                         </Button.Template>
                                     </Button>
                                     <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
-                                        <TextBlock x:Name="NowPlayingText" Text="Select a processed track to preview" Foreground="#D5D8E2" FontSize="12" FontWeight="SemiBold" MaxWidth="220" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock x:Name="NowPlayingText" Text="Select a track to inspect &amp; preview" Foreground="#D5D8E2" FontSize="12" FontWeight="SemiBold" MaxWidth="220" TextTrimming="CharacterEllipsis"/>
                                         <TextBlock x:Name="TimeText" Text="00:00 / 00:00" Foreground="#686E82" FontSize="10.5"/>
                                     </StackPanel>
                                 </StackPanel>
@@ -335,40 +336,115 @@
                                 </StackPanel>
                             </Grid>
 
-                            <Border Grid.Row="1" Background="#0E1016" CornerRadius="7" BorderBrush="#1C1F2B" BorderThickness="1" ClipToBounds="True" MouseLeftButtonDown="Waveform_MouseDown" Cursor="Hand">
+                            <Border Grid.Row="1" Background="#0C0E14" CornerRadius="7" BorderBrush="#1C1F2B" BorderThickness="1" ClipToBounds="True" MouseLeftButtonDown="Waveform_MouseDown" Cursor="Hand">
                                 <Grid>
                                     <Canvas x:Name="WaveformCanvas" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" SizeChanged="WaveformCanvas_SizeChanged"/>
                                     <Rectangle x:Name="Playhead" Width="2" Fill="#FFFFFF" HorizontalAlignment="Left" Visibility="Collapsed"/>
                                 </Grid>
                             </Border>
+
+                            <Grid Grid.Row="2" Margin="2,6,2,0">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Border Width="8" Height="8" CornerRadius="2" Background="#3B425E" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Base" Foreground="#686E82" FontSize="10" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                    <Border Width="8" Height="8" CornerRadius="2" Background="#4ADE80" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="+Boosted (After)" Foreground="#86EFAC" FontSize="10" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                    <Border Width="8" Height="8" CornerRadius="2" Background="#F472B6" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="-Cut / Limited (Before)" Foreground="#F9A8D4" FontSize="10" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <TextBlock x:Name="DiffStatsText" Text="Overlay Diff Ready" Foreground="#7C85F2" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <UniformGrid Grid.Row="3" Columns="4" Margin="0,8,0,0">
+                                <Border Background="#161922" BorderBrush="#222634" BorderThickness="1" CornerRadius="6" Padding="8,5" Margin="0,0,4,0">
+                                    <StackPanel>
+                                        <TextBlock Text="LOUDNESS" Foreground="#5E6375" FontSize="9.5" FontWeight="Bold"/>
+                                        <TextBlock x:Name="TxtLufs" Text="-- LUFS" Foreground="#D5D8E2" FontSize="12" FontWeight="SemiBold" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                                <Border Background="#161922" BorderBrush="#222634" BorderThickness="1" CornerRadius="6" Padding="8,5" Margin="2,0,2,0">
+                                    <StackPanel>
+                                        <TextBlock Text="TRUE PEAK" Foreground="#5E6375" FontSize="9.5" FontWeight="Bold"/>
+                                        <TextBlock x:Name="TxtPeak" Text="-- dBTP" Foreground="#D5D8E2" FontSize="12" FontWeight="SemiBold" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                                <Border Background="#161922" BorderBrush="#222634" BorderThickness="1" CornerRadius="6" Padding="8,5" Margin="2,0,2,0">
+                                    <StackPanel>
+                                        <TextBlock Text="DYNAMICS / SR" Foreground="#5E6375" FontSize="9.5" FontWeight="Bold"/>
+                                        <TextBlock x:Name="TxtLra" Text="-- LU" Foreground="#D5D8E2" FontSize="12" FontWeight="SemiBold" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                                <Border x:Name="GradeBadge" Background="#161922" BorderBrush="#222634" BorderThickness="1" CornerRadius="6" Padding="8,5" Margin="4,0,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="QC VERDICT" Foreground="#5E6375" FontSize="9.5" FontWeight="Bold"/>
+                                        <TextBlock x:Name="TxtGrade" Text="STANDBY" Foreground="#8E93A6" FontSize="12" FontWeight="Bold" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                            </UniformGrid>
                         </Grid>
                     </Border>
 
-                    <Grid Grid.Row="4" Margin="22,0,22,6">
-                        <TextBlock x:Name="StatusText" Text="Ready · Metadata &amp; watermark clean active" Foreground="#686E82" FontSize="11.5" VerticalAlignment="Center"/>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                            <Button x:Name="ReprocessBtn" Content="Re-Master All" Click="Reprocess_Click" Visibility="Collapsed" Margin="0,0,6,0"
-                                    Background="#222638" Foreground="#9EA6F6" BorderBrush="#6E7BF2" BorderThickness="1" Padding="10,4" Cursor="Hand" FontSize="11.5">
-                                <Button.Template>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="{TemplateBinding Padding}">
-                                            <ContentPresenter/>
-                                        </Border>
-                                    </ControlTemplate>
-                                </Button.Template>
-                            </Button>
-                            <Button x:Name="ClearBtn" Content="Clear" Click="Clear_Click" Visibility="Collapsed"
-                                    Background="#1C1F2B" Foreground="#C5C9D6" BorderBrush="#2B3040" BorderThickness="1" Padding="10,4" Cursor="Hand" FontSize="11.5">
-                                <Button.Template>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="{TemplateBinding Padding}">
-                                            <ContentPresenter/>
-                                        </Border>
-                                    </ControlTemplate>
-                                </Button.Template>
-                            </Button>
-                        </StackPanel>
-                    </Grid>
+                    <StackPanel Grid.Row="4" Margin="21,0,21,14">
+                        <Grid Margin="2,0,2,8">
+                            <TextBlock x:Name="StatusText" Text="Ready · EBU R128 Audio QC Inspector active" Foreground="#686E82" FontSize="11.5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="360" HorizontalAlignment="Left"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <Button x:Name="AddFilesBtn" Content="+ Add Files" Click="AddFiles_Click" Visibility="Collapsed" Margin="0,0,6,0"
+                                        Background="#1A1D29" Foreground="#9EA6F6" BorderBrush="#2D3348" BorderThickness="1" Padding="10,4" Cursor="Hand" FontSize="11">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                                <Button x:Name="ClearBtn" Content="Clear" Click="Clear_Click" Visibility="Collapsed"
+                                        Background="#1C1F2B" Foreground="#C5C9D6" BorderBrush="#2B3040" BorderThickness="1" Padding="10,4" Cursor="Hand" FontSize="11">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+
+                        <Button x:Name="StartBtn" Content="DROP OR ADD TRACKS TO START" Click="StartProcess_Click" IsEnabled="False" Height="44" Cursor="Hand">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="BtnBd" CornerRadius="10" BorderThickness="1" BorderBrush="#8B95F6">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="#6E7BF2" Offset="0"/>
+                                                <GradientStop Color="#8B5CF6" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <Path x:Name="BtnIcon" Data="M4,2 L14,8 L4,14 Z" Fill="#FFFFFF" Margin="0,0,9,0" VerticalAlignment="Center"/>
+                                            <TextBlock x:Name="BtnTxt" Text="{TemplateBinding Content}" Foreground="#FFFFFF" FontSize="13.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="BtnBd" Property="BorderBrush" Value="#C4B5FD"/>
+                                            <Setter TargetName="BtnBd" Property="Opacity" Value="0.95"/>
+                                        </Trigger>
+                                        <Trigger Property="IsPressed" Value="True">
+                                            <Setter TargetName="BtnBd" Property="Opacity" Value="0.85"/>
+                                        </Trigger>
+                                        <Trigger Property="IsEnabled" Value="False">
+                                            <Setter TargetName="BtnBd" Property="Background" Value="#161822"/>
+                                            <Setter TargetName="BtnBd" Property="BorderBrush" Value="#232736"/>
+                                            <Setter TargetName="BtnIcon" Property="Fill" Value="#484E63"/>
+                                            <Setter TargetName="BtnTxt" Property="Foreground" Value="#484E63"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </StackPanel>
                 </Grid>
 
                 <Border x:Name="FxRackPanel" Grid.Column="1" Width="320" Visibility="Collapsed" BorderBrush="#222530" BorderThickness="1,0,0,0" Background="#101218" Padding="18,8,18,16">

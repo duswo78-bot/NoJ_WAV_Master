@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -32,11 +33,15 @@ public partial class MainWindow : Window
     private readonly SemaphoreSlim _ffmpegLock = new(1, 1);
     private AudioTaskItem? _currentItem;
     private bool _isPlaying;
+    private bool _isProcessing;
+    private bool _settingsDirty;
     private bool _suppressAutoManual;
     private string? _ffmpegPath;
 
-    private MediaPlayer ActivePlayer => BtnAfter.IsChecked == true ? _masterPlayer : _rawPlayer;
-    private MediaPlayer InactivePlayer => BtnAfter.IsChecked == true ? _rawPlayer : _masterPlayer;
+    private MediaPlayer ActivePlayer => (BtnAfter.IsChecked == true && _currentItem != null && !string.IsNullOrEmpty(_currentItem.OutputPath))
+        ? _masterPlayer
+        : _rawPlayer;
+    private MediaPlayer InactivePlayer => ReferenceEquals(ActivePlayer, _masterPlayer) ? _rawPlayer : _masterPlayer;
 
     public MainWindow()
     {
@@ -73,18 +78,82 @@ public partial class MainWindow : Window
     {
         if (ToggleRackBtn != null && ToggleRackBtn.IsChecked == false)
             ToggleRackBtn.IsChecked = true;
+        MarkSettingsChanged();
+    }
+
+    private void Setting_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!IsLoaded) return;
+        MarkSettingsChanged();
     }
 
     private void FxControl_Click(object sender, RoutedEventArgs e)
     {
         if (!IsLoaded || _suppressAutoManual) return;
         if (ModeManual.IsChecked != true) ModeManual.IsChecked = true;
+        MarkSettingsChanged();
     }
 
     private void FxSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (!IsLoaded || _suppressAutoManual) return;
         if (ModeManual.IsChecked != true) ModeManual.IsChecked = true;
+        MarkSettingsChanged();
+    }
+
+    private void MarkSettingsChanged()
+    {
+        if (!IsLoaded) return;
+        if (Tasks.Any(t => !string.IsNullOrEmpty(t.OutputPath)))
+        {
+            _settingsDirty = true;
+            if (!_isProcessing)
+                StatusText.Text = "Settings adjusted · Click Start button below to apply";
+        }
+        UpdateStartButtonState();
+    }
+
+    private void UpdateStartButtonState()
+    {
+        if (StartBtn == null) return;
+
+        if (_isProcessing)
+        {
+            StartBtn.IsEnabled = false;
+            StartBtn.Content = "PROCESSING TRACKS...";
+            return;
+        }
+
+        if (Tasks.Count == 0)
+        {
+            StartBtn.IsEnabled = false;
+            StartBtn.Content = "DROP OR ADD TRACKS TO START";
+            return;
+        }
+
+        StartBtn.IsEnabled = true;
+        bool isConvertOnly = ModeConvert?.IsChecked == true;
+        bool anyUnprocessed = Tasks.Any(t => string.IsNullOrEmpty(t.OutputPath));
+        string countLabel = $"{Tasks.Count} {(Tasks.Count == 1 ? "TRACK" : "TRACKS")}";
+
+        if (anyUnprocessed)
+        {
+            StartBtn.Content = isConvertOnly
+                ? $"START CONVERTING ({countLabel})"
+                : $"START MASTERING & CONVERT ({countLabel})";
+        }
+        else if (_settingsDirty)
+        {
+            StartBtn.Content = isConvertOnly
+                ? $"APPLY & RE-CONVERT ({countLabel})"
+                : $"APPLY NEW FX & RE-MASTER ({countLabel})";
+        }
+        else
+        {
+            StartBtn.Content = isConvertOnly
+                ? $"RE-CONVERT ALL ({countLabel})"
+                : $"RE-MASTER ALL ({countLabel})";
+        }
     }
 
     private void ResetFx_Click(object sender, RoutedEventArgs e)
@@ -113,6 +182,7 @@ public partial class MainWindow : Window
         {
             _suppressAutoManual = false;
         }
+        MarkSettingsChanged();
     }
 
     private void DropZone_DragEnter(object sender, DragEventArgs e)
@@ -132,46 +202,69 @@ public partial class MainWindow : Window
         if (e.Data.GetDataPresent(DataFormats.FileDrop))
         {
             string[] dropped = (string[])e.Data.GetData(DataFormats.FileDrop);
-            await ProcessFilesAsync(dropped);
+            await EnqueueFilesAsync(dropped);
         }
     }
 
     private async void DropZone_Click(object sender, MouseButtonEventArgs e)
     {
         if (Tasks.Count > 0) return;
+        await BrowseAndEnqueueFilesAsync();
+    }
+
+    private async void AddFiles_Click(object sender, RoutedEventArgs e)
+    {
+        await BrowseAndEnqueueFilesAsync();
+    }
+
+    private async Task BrowseAndEnqueueFilesAsync()
+    {
         var dlg = new OpenFileDialog
         {
             Multiselect = true,
             Filter = "Audio/Video Files|*.wav;*.mp3;*.flac;*.aiff;*.aac;*.m4a;*.ogg;*.mp4|All Files|*.*"
         };
         if (dlg.ShowDialog() == true)
-            await ProcessFilesAsync(dlg.FileNames);
+            await EnqueueFilesAsync(dlg.FileNames);
     }
 
-    private async void Reprocess_Click(object sender, RoutedEventArgs e)
+    private async void StartProcess_Click(object sender, RoutedEventArgs e)
     {
-        if (Tasks.Count == 0) return;
-        string? prevSelectedFile = (FileList.SelectedItem as AudioTaskItem)?.FilePath;
-        ReleasePlayers();
-        _currentItem = null;
-        string[] files = Tasks.Select(t => t.FilePath).ToArray();
-        Tasks.Clear();
-        await ProcessFilesAsync(files, prevSelectedFile);
+        if (_isProcessing || Tasks.Count == 0) return;
+        await ExecuteBatchAsync();
     }
 
     private void Clear_Click(object sender, RoutedEventArgs e)
     {
+        if (_isProcessing) return;
         ReleasePlayers();
         _currentItem = null;
+        _settingsDirty = false;
         WaveformCanvas.Children.Clear();
-        NowPlayingText.Text = "Select a processed track to preview";
+        NowPlayingText.Text = "Select a track to inspect & preview";
         TimeText.Text = "00:00 / 00:00";
+        DiffStatsText.Text = "Overlay Diff Ready";
+        ResetQcDisplay();
         Tasks.Clear();
         FileList.Visibility = Visibility.Collapsed;
         EmptyState.Visibility = Visibility.Visible;
         ClearBtn.Visibility = Visibility.Collapsed;
-        ReprocessBtn.Visibility = Visibility.Collapsed;
-        StatusText.Text = "Ready · Metadata & watermark clean active";
+        AddFilesBtn.Visibility = Visibility.Collapsed;
+        StatusText.Text = "Ready · EBU R128 Audio QC Inspector active";
+        UpdateStartButtonState();
+    }
+
+    private void ResetQcDisplay()
+    {
+        if (TxtLufs == null) return;
+        TxtLufs.Text = "-- LUFS";
+        TxtLufs.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D5D8E2"));
+        TxtPeak.Text = "-- dBTP";
+        TxtPeak.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D5D8E2"));
+        TxtLra.Text = "-- LU";
+        TxtGrade.Text = "STANDBY";
+        TxtGrade.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8E93A6"));
+        GradeBadge.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#222634"));
     }
 
     private static List<string> ExpandInputFiles(string[] paths)
@@ -323,7 +416,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task ProcessFilesAsync(string[] rawPaths, string? preferredSelectionPath = null)
+    private async Task EnqueueFilesAsync(string[] rawPaths)
     {
         List<string> files = ExpandInputFiles(rawPaths);
         if (files.Count == 0)
@@ -333,13 +426,62 @@ public partial class MainWindow : Window
                 EmptyState.Visibility = Visibility.Visible;
                 FileList.Visibility = Visibility.Collapsed;
             }
+            UpdateStartButtonState();
             return;
         }
 
         EmptyState.Visibility = Visibility.Collapsed;
         FileList.Visibility = Visibility.Visible;
         ClearBtn.Visibility = Visibility.Visible;
-        ReprocessBtn.Visibility = Visibility.Visible;
+        AddFilesBtn.Visibility = Visibility.Visible;
+
+        AudioTaskItem? firstAdded = null;
+        int addedCount = 0;
+
+        foreach (var f in files)
+        {
+            var existing = Tasks.FirstOrDefault(t => string.Equals(t.FilePath, f, StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
+            {
+                firstAdded ??= existing;
+                continue;
+            }
+
+            var item = new AudioTaskItem
+            {
+                FilePath = f,
+                FileName = System.IO.Path.GetFileName(f),
+                Status = "Ready",
+                StatusColor = "#9EA6F6"
+            };
+            Tasks.Add(item);
+            firstAdded ??= item;
+            addedCount++;
+        }
+
+        UpdateStartButtonState();
+        StatusText.Text = $"{Tasks.Count} track(s) loaded · Adjust settings & click Start below";
+
+        if (FileList.SelectedItem == null && firstAdded != null)
+        {
+            FileList.SelectedItem = firstAdded;
+        }
+        else if (addedCount == 0 && firstAdded != null)
+        {
+            FileList.SelectedItem = firstAdded;
+        }
+
+        await Task.CompletedTask;
+    }
+
+    private async Task ExecuteBatchAsync()
+    {
+        if (Tasks.Count == 0 || _isProcessing) return;
+
+        _isProcessing = true;
+        UpdateStartButtonState();
+
+        string? prevSelectedFile = (FileList.SelectedItem as AudioTaskItem)?.FilePath;
 
         string ffmpeg;
         try
@@ -348,6 +490,8 @@ public partial class MainWindow : Window
         }
         catch
         {
+            _isProcessing = false;
+            UpdateStartButtonState();
             StatusText.Text = "FFmpeg setup failed. Check internet or place ffmpeg.exe next to app.";
             return;
         }
@@ -355,36 +499,20 @@ public partial class MainWindow : Window
         string filterArg = BuildFilterArgument();
         var (ext, codecArg, suffix) = GetFormatArguments();
 
-        var newItems = new List<AudioTaskItem>();
-        foreach (var f in files)
-        {
-            var item = new AudioTaskItem
-            {
-                FilePath = f,
-                FileName = System.IO.Path.GetFileName(f),
-                Status = "Queued",
-                StatusColor = "#8E93A6"
-            };
-            Tasks.Add(item);
-            newItems.Add(item);
-        }
-
-        StatusText.Text = $"Processing {newItems.Count} file(s)...";
+        StatusText.Text = $"Processing {Tasks.Count} file(s)...";
         int successCount = 0;
 
-        foreach (var item in newItems)
-        {
-            string expectedOut = BuildOutputPath(item.FilePath, suffix, ext);
-            if (_currentItem != null &&
-                (string.Equals(_currentItem.OutputPath, expectedOut, StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(_currentItem.FilePath, item.FilePath, StringComparison.OrdinalIgnoreCase)))
-            {
-                ReleasePlayers();
-                _currentItem = null;
-            }
+        ReleasePlayers();
+        _currentItem = null;
 
+        foreach (var item in Tasks)
+        {
             item.Status = "Working...";
             item.StatusColor = "#7C85F2";
+            item.MasterPeaks = null;
+            item.MasterPeakLinear = 0f;
+            item.MasterRmsLinear = 0f;
+            item.MasterQc = null;
 
             var (ok, outPath) = await Task.Run(() => RunFFmpeg(ffmpeg, item.FilePath, filterArg, codecArg, ext, suffix));
             if (ok)
@@ -396,24 +524,31 @@ public partial class MainWindow : Window
             }
             else
             {
+                item.OutputPath = "";
                 item.Status = "Failed";
                 item.StatusColor = "#F87171";
             }
         }
 
-        StatusText.Text = $"Completed {successCount}/{newItems.Count} file(s). Click a track to preview.";
+        _isProcessing = false;
+        _settingsDirty = false;
+        UpdateStartButtonState();
+
+        StatusText.Text = $"Completed {successCount}/{Tasks.Count} file(s) · Click a track to compare Before/After";
 
         AudioTaskItem? targetSelect = null;
-        if (!string.IsNullOrEmpty(preferredSelectionPath))
+        if (!string.IsNullOrEmpty(prevSelectedFile))
         {
-            targetSelect = newItems.FirstOrDefault(i =>
-                !string.IsNullOrEmpty(i.OutputPath) &&
-                string.Equals(i.FilePath, preferredSelectionPath, StringComparison.OrdinalIgnoreCase));
+            targetSelect = Tasks.FirstOrDefault(i =>
+                string.Equals(i.FilePath, prevSelectedFile, StringComparison.OrdinalIgnoreCase));
         }
-        targetSelect ??= newItems.FirstOrDefault(i => !string.IsNullOrEmpty(i.OutputPath));
+        targetSelect ??= Tasks.FirstOrDefault(i => !string.IsNullOrEmpty(i.OutputPath)) ?? Tasks.FirstOrDefault();
 
-        if (FileList.SelectedItem == null && targetSelect != null)
+        if (targetSelect != null)
+        {
+            FileList.SelectedItem = null;
             FileList.SelectedItem = targetSelect;
+        }
     }
 
     private string BuildFilterArgument()
@@ -528,7 +663,7 @@ public partial class MainWindow : Window
 
     private async void FileList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (FileList.SelectedItem is not AudioTaskItem item || string.IsNullOrEmpty(item.OutputPath)) return;
+        if (FileList.SelectedItem is not AudioTaskItem item) return;
         ReleasePlayers();
         _currentItem = item;
         NowPlayingText.Text = item.FileName;
@@ -537,14 +672,35 @@ public partial class MainWindow : Window
 
         if (File.Exists(item.FilePath))
             _rawPlayer.Open(new Uri(item.FilePath));
-        if (File.Exists(item.OutputPath))
+
+        bool hasMaster = !string.IsNullOrEmpty(item.OutputPath) && File.Exists(item.OutputPath);
+        if (hasMaster)
+        {
             _masterPlayer.Open(new Uri(item.OutputPath));
+            BtnAfter.IsChecked = true;
+        }
+        else
+        {
+            BtnBefore.IsChecked = true;
+        }
 
         await LoadWaveformsAsync(item);
     }
 
     private async Task LoadWaveformsAsync(AudioTaskItem item)
     {
+        bool isAfter = BtnAfter.IsChecked == true && !string.IsNullOrEmpty(item.OutputPath);
+        var cachedQc = isAfter ? item.MasterQc : item.RawQc;
+        if (cachedQc != null)
+        {
+            UpdateCurrentQcDashboard();
+        }
+        else if (TxtGrade != null)
+        {
+            TxtGrade.Text = "SCANNING...";
+            TxtGrade.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#7C85F2"));
+        }
+
         string ffmpeg;
         try
         {
@@ -555,11 +711,166 @@ public partial class MainWindow : Window
             return;
         }
 
-        item.RawPeaks ??= await Task.Run(() => ExtractWaveformPeaks(ffmpeg, item.FilePath, 110));
-        item.MasterPeaks ??= await Task.Run(() => ExtractWaveformPeaks(ffmpeg, item.OutputPath, 110));
+        const int barCount = 150;
+        var pendingTasks = new List<Task>();
+
+        if (item.RawPeaks == null && File.Exists(item.FilePath))
+        {
+            pendingTasks.Add(Task.Run(() =>
+            {
+                var (peaks, maxPeak, avgRms) = ExtractWaveformData(ffmpeg, item.FilePath, barCount);
+                item.RawPeaks = peaks;
+                item.RawPeakLinear = maxPeak;
+                item.RawRmsLinear = avgRms;
+            }));
+        }
+
+        if (item.RawQc == null && File.Exists(item.FilePath))
+        {
+            pendingTasks.Add(Task.Run(() =>
+            {
+                item.RawQc = AnalyzeAudioQuality(ffmpeg, item.FilePath);
+            }));
+        }
+
+        if (!string.IsNullOrEmpty(item.OutputPath) && File.Exists(item.OutputPath))
+        {
+            if (item.MasterPeaks == null)
+            {
+                pendingTasks.Add(Task.Run(() =>
+                {
+                    var (peaks, maxPeak, avgRms) = ExtractWaveformData(ffmpeg, item.OutputPath, barCount);
+                    item.MasterPeaks = peaks;
+                    item.MasterPeakLinear = maxPeak;
+                    item.MasterRmsLinear = avgRms;
+                }));
+            }
+
+            if (item.MasterQc == null)
+            {
+                pendingTasks.Add(Task.Run(() =>
+                {
+                    item.MasterQc = AnalyzeAudioQuality(ffmpeg, item.OutputPath);
+                }));
+            }
+        }
+
+        if (pendingTasks.Count > 0)
+            await Task.WhenAll(pendingTasks);
 
         if (_currentItem == item)
+        {
             DrawCurrentWaveform();
+            UpdateCurrentQcDashboard();
+        }
+    }
+
+    private static AudioQcReport AnalyzeAudioQuality(string ffmpegPath, string filePath)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                Arguments = $"-nostats -i \"{filePath}\" -vn -sn -dn -af ebur128=peak=true -f null -",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardError = true
+            };
+
+            using var proc = Process.Start(psi);
+            if (proc == null) return new AudioQcReport(0, 0, 0, 44100, false);
+
+            string stderr = proc.StandardError.ReadToEnd();
+            proc.WaitForExit();
+
+            var inv = CultureInfo.InvariantCulture;
+            double lufs = -14.0, peak = -1.0, lra = 7.0;
+            int sr = 44100;
+
+            var srMatch = Regex.Match(stderr, @"(\d{4,6})\s*Hz");
+            if (srMatch.Success) int.TryParse(srMatch.Groups[1].Value, out sr);
+
+            var iMatches = Regex.Matches(stderr, @"I:\s*([-\d\.]+)\s*LUFS");
+            if (iMatches.Count > 0) double.TryParse(iMatches[^1].Groups[1].Value, NumberStyles.Any, inv, out lufs);
+
+            var tpMatches = Regex.Matches(stderr, @"Peak:\s*([-\d\.]+)\s*dBFS");
+            if (tpMatches.Count > 0) double.TryParse(tpMatches[^1].Groups[1].Value, NumberStyles.Any, inv, out peak);
+
+            var lraMatches = Regex.Matches(stderr, @"LRA:\s*([-\d\.]+)\s*LU");
+            if (lraMatches.Count > 0) double.TryParse(lraMatches[^1].Groups[1].Value, NumberStyles.Any, inv, out lra);
+
+            return new AudioQcReport(lufs, peak, lra, sr, iMatches.Count > 0);
+        }
+        catch
+        {
+            return new AudioQcReport(0, 0, 0, 44100, false);
+        }
+    }
+
+    private void UpdateCurrentQcDashboard()
+    {
+        if (_currentItem == null || TxtLufs == null)
+        {
+            ResetQcDisplay();
+            return;
+        }
+
+        bool isAfter = BtnAfter.IsChecked == true && !string.IsNullOrEmpty(_currentItem.OutputPath);
+        AudioQcReport? report = isAfter ? _currentItem.MasterQc : _currentItem.RawQc;
+
+        if (report == null)
+        {
+            TxtGrade.Text = "SCANNING...";
+            TxtGrade.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#7C85F2"));
+            return;
+        }
+
+        var qc = report.Value;
+        if (!qc.Valid)
+        {
+            ResetQcDisplay();
+            return;
+        }
+
+        TxtLufs.Text = $"{qc.Lufs:0.0} LUFS";
+        TxtPeak.Text = $"{qc.Peak:0.0} dBTP";
+        TxtLra.Text = $"{qc.Lra:0.0} LU · {qc.SampleRate / 1000.0:0.#}k";
+
+        bool peakSafe = qc.Peak <= -0.8;
+        bool peakClip = qc.Peak > -0.2;
+        bool lufsOptimal = qc.Lufs >= -16.5 && qc.Lufs <= -8.5;
+
+        TxtPeak.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(
+            peakClip ? "#F87171" : (peakSafe ? "#4ADE80" : "#FBBF24")));
+
+        TxtLufs.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(
+            lufsOptimal ? "#4ADE80" : "#FBBF24"));
+
+        if (peakClip)
+        {
+            TxtGrade.Text = "C · CLIP RISK";
+            TxtGrade.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F87171"));
+            GradeBadge.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F87171"));
+        }
+        else if (peakSafe && lufsOptimal)
+        {
+            TxtGrade.Text = "S · STUDIO PASS";
+            TxtGrade.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4ADE80"));
+            GradeBadge.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4ADE80"));
+        }
+        else if (!peakClip && (qc.Lufs >= -20.0 && qc.Lufs <= -6.5))
+        {
+            TxtGrade.Text = "A · STREAM READY";
+            TxtGrade.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#60A5FA"));
+            GradeBadge.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#60A5FA"));
+        }
+        else
+        {
+            TxtGrade.Text = "B · LEVEL WARN";
+            TxtGrade.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FBBF24"));
+            GradeBadge.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FBBF24"));
+        }
     }
 
     private void Player_MediaOpened(object? sender, EventArgs e)
@@ -584,6 +895,13 @@ public partial class MainWindow : Window
     {
         if (!IsLoaded || _currentItem == null) return;
 
+        if (BtnAfter.IsChecked == true && string.IsNullOrEmpty(_currentItem.OutputPath))
+        {
+            BtnBefore.IsChecked = true;
+            StatusText.Text = "Press Start Mastering below to generate After preview";
+            return;
+        }
+
         TimeSpan pos = InactivePlayer.Position;
         InactivePlayer.Pause();
 
@@ -595,6 +913,7 @@ public partial class MainWindow : Window
             ActivePlayer.Play();
 
         DrawCurrentWaveform();
+        UpdateCurrentQcDashboard();
         UpdateTimeAndPlayhead();
     }
 
@@ -676,86 +995,233 @@ public partial class MainWindow : Window
         }
     }
 
-    private static float[] ExtractWaveformPeaks(string ffmpegPath, string filePath, int bars)
+    private static (float[] peaks, float trackMaxPeak, float trackAvgRms) ExtractWaveformData(string ffmpegPath, string filePath, int bars)
     {
         var result = new float[bars];
+        float globalMaxPeak = 0f;
+        double globalSumSq = 0;
+        long totalFrames = 0;
+
         try
         {
             var psi = new ProcessStartInfo
             {
                 FileName = ffmpegPath,
-                Arguments = $"-v error -i \"{filePath}\" -vn -ac 1 -ar 4000 -f s16le -",
+                Arguments = $"-v error -i \"{filePath}\" -vn -ac 2 -ar 22050 -f s16le -",
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true
             };
 
             using var proc = Process.Start(psi);
-            if (proc == null) return result;
+            if (proc == null) return (result, 0f, 0f);
 
             using var ms = new MemoryStream();
             proc.StandardOutput.BaseStream.CopyTo(ms);
             proc.WaitForExit();
 
             byte[] bytes = ms.ToArray();
-            int sampleCount = bytes.Length / 2;
-            if (sampleCount == 0) return result;
+            int stereoFrames = bytes.Length / 4; // 2 channels * 2 bytes
+            if (stereoFrames == 0) return (result, 0f, 0f);
 
-            int step = Math.Max(1, sampleCount / bars);
+            int step = Math.Max(1, stereoFrames / bars);
             for (int b = 0; b < bars; b++)
             {
                 int start = b * step;
-                float max = 0f;
-                for (int i = 0; i < step && (start + i) < sampleCount; i++)
+                float maxPeak = 0f;
+                double sumSq = 0;
+                int count = 0;
+
+                for (int i = 0; i < step && (start + i) < stereoFrames; i++)
                 {
-                    short val = BitConverter.ToInt16(bytes, (start + i) * 2);
-                    float norm = Math.Abs(val / 32768f);
-                    if (norm > max) max = norm;
+                    int offset = (start + i) * 4;
+                    float left = BitConverter.ToInt16(bytes, offset) / 32768f;
+                    float right = BitConverter.ToInt16(bytes, offset + 2) / 32768f;
+
+                    float absL = Math.Abs(left);
+                    float absR = Math.Abs(right);
+                    float framePeak = Math.Max(absL, absR);
+                    float sideEnergy = Math.Abs(left - right) * 0.35f;
+                    float effectiveSample = Math.Min(1.0f, framePeak + sideEnergy * 0.25f);
+
+                    if (effectiveSample > maxPeak) maxPeak = effectiveSample;
+                    if (framePeak > globalMaxPeak) globalMaxPeak = framePeak;
+
+                    double frameSq = (left * left + right * right) * 0.5;
+                    sumSq += frameSq;
+                    globalSumSq += frameSq;
+                    count++;
+                    totalFrames++;
                 }
-                result[b] = Math.Clamp(max, 0.06f, 1.0f);
+
+                float rms = count > 0 ? (float)Math.Sqrt(sumSq / count) : 0f;
+                float combined = 0.58f * maxPeak + 0.42f * Math.Min(1.0f, rms * 1.85f);
+                result[b] = Math.Clamp(combined, 0.04f, 1.0f);
             }
         }
         catch { }
-        return result;
+
+        float avgRms = totalFrames > 0 ? (float)Math.Sqrt(globalSumSq / totalFrames) : 0f;
+        return (result, globalMaxPeak, avgRms);
+    }
+
+    private static double LinearToDb(float linear)
+    {
+        if (linear <= 0.00001f) return -96.0;
+        return 20.0 * Math.Log10(linear);
     }
 
     private void DrawCurrentWaveform()
     {
-        if (_currentItem == null) return;
-        bool isAfter = BtnAfter.IsChecked == true;
-        float[]? peaks = isAfter ? _currentItem.MasterPeaks : _currentItem.RawPeaks;
-        if (peaks == null || peaks.Length == 0) return;
-        DrawWaveform(peaks, isAfter);
-    }
-
-    private void DrawWaveform(float[] peaks, bool isAfter)
-    {
         WaveformCanvas.Children.Clear();
+        if (_currentItem == null) return;
+
+        float[]? raw = _currentItem.RawPeaks;
+        float[]? master = _currentItem.MasterPeaks;
+        if (raw == null || raw.Length == 0) return;
+
         double w = WaveformCanvas.ActualWidth > 0 ? WaveformCanvas.ActualWidth : 488;
-        double h = WaveformCanvas.ActualHeight > 0 ? WaveformCanvas.ActualHeight : 54;
+        double h = WaveformCanvas.ActualHeight > 0 ? WaveformCanvas.ActualHeight : 64;
+        double centerY = h / 2.0;
 
-        var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(isAfter ? "#4ADE80" : "#F472B6"));
-        double barSlot = w / peaks.Length;
-        double barWidth = Math.Max(2.0, barSlot - 2.0);
-
-        for (int i = 0; i < peaks.Length; i++)
+        // Center reference axis line
+        var centerLine = new Line
         {
-            double barHeight = Math.Max(4, peaks[i] * (h - 8));
-            var rect = new Rectangle
+            X1 = 0,
+            Y1 = centerY,
+            X2 = w,
+            Y2 = centerY,
+            Stroke = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1D2230")),
+            StrokeThickness = 1
+        };
+        WaveformCanvas.Children.Add(centerLine);
+
+        int count = raw.Length;
+        double barSlot = w / count;
+        double barWidth = Math.Max(1.8, barSlot - 1.2);
+        double maxDrawH = Math.Max(12, h - 6);
+
+        bool hasMaster = master != null && master.Length == count;
+        bool isAfterSelected = BtnAfter.IsChecked == true && hasMaster;
+
+        if (!hasMaster)
+        {
+            // Only Raw loaded (before pressing Start Mastering)
+            float rawMax = Math.Max(0.15f, raw.Max());
+            var rawBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F472B6"));
+
+            for (int i = 0; i < count; i++)
+            {
+                double norm = Math.Clamp(raw[i] / rawMax, 0.05, 1.0);
+                double barH = Math.Max(3.0, norm * maxDrawH);
+                var rect = new Rectangle
+                {
+                    Width = barWidth,
+                    Height = barH,
+                    RadiusX = 1.2,
+                    RadiusY = 1.2,
+                    Fill = rawBrush,
+                    Opacity = 0.78
+                };
+                Canvas.SetLeft(rect, i * barSlot + 0.5);
+                Canvas.SetTop(rect, centerY - barH / 2.0);
+                WaveformCanvas.Children.Add(rect);
+            }
+
+            double rawPeakDb = LinearToDb(_currentItem.RawPeakLinear);
+            double rawRmsDb = LinearToDb(_currentItem.RawRmsLinear);
+            DiffStatsText.Text = $"Raw Preview · Peak {rawPeakDb:0.0} dB · RMS {rawRmsDb:0.0} dB";
+            return;
+        }
+
+        // Overlapped Before / After Comparison Waveform with Highlighted Delta
+        float[] masterArr = master!;
+        float sharedScale = Math.Max(0.15f, Math.Max(raw.Max(), masterArr.Max()));
+
+        var baseBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(isAfterSelected ? "#323A52" : "#3A3248"));
+        var boostBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4ADE80")); // Vivid Neon Green (+After > Before)
+        var cutBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F472B6"));   // Vivid Rose Pink (-Before > After)
+
+        int boostedBars = 0;
+        int cutBars = 0;
+
+        for (int i = 0; i < count; i++)
+        {
+            double rNorm = Math.Clamp(raw[i] / sharedScale, 0.04, 1.0);
+            double mNorm = Math.Clamp(masterArr[i] / sharedScale, 0.04, 1.0);
+
+            double rawH = Math.Max(3.0, rNorm * maxDrawH);
+            double masterH = Math.Max(3.0, mNorm * maxDrawH);
+
+            double baseH = Math.Min(rawH, masterH);
+            double rawDelta = masterArr[i] - raw[i];
+            double absDelta = Math.Abs(rawDelta);
+
+            // Amplify non-zero differences so subtle mastering/limiter/EQ changes pop clearly
+            double visualDiffH = 0;
+            if (absDelta >= 0.0025)
+            {
+                double magnified = (absDelta / sharedScale) * maxDrawH * 2.8;
+                visualDiffH = Math.Clamp(Math.Max(4.0, magnified), 4.0, maxDrawH - 3.0);
+                if (baseH + visualDiffH > maxDrawH)
+                    baseH = Math.Max(3.0, maxDrawH - visualDiffH);
+            }
+
+            double x = i * barSlot + 0.5;
+
+            if (visualDiffH > 0)
+            {
+                bool isBoost = rawDelta > 0;
+                if (isBoost) boostedBars++;
+                else cutBars++;
+
+                double outerH = baseH + visualDiffH;
+                var diffRect = new Rectangle
+                {
+                    Width = barWidth,
+                    Height = outerH,
+                    RadiusX = 1.2,
+                    RadiusY = 1.2,
+                    Fill = isBoost ? boostBrush : cutBrush,
+                    Opacity = (isBoost == isAfterSelected) ? 1.0 : 0.88
+                };
+                Canvas.SetLeft(diffRect, x);
+                Canvas.SetTop(diffRect, centerY - outerH / 2.0);
+                WaveformCanvas.Children.Add(diffRect);
+            }
+
+            // Shared base body drawn on top in the middle so outer tips glow in Green/Pink
+            var baseRect = new Rectangle
             {
                 Width = barWidth,
-                Height = barHeight,
-                RadiusX = 1.5,
-                RadiusY = 1.5,
-                Fill = brush,
-                Opacity = 0.85
+                Height = baseH,
+                RadiusX = 1.0,
+                RadiusY = 1.0,
+                Fill = baseBrush,
+                Opacity = 0.94
             };
-            Canvas.SetLeft(rect, i * barSlot + 1);
-            Canvas.SetTop(rect, (h - barHeight) / 2);
-            WaveformCanvas.Children.Add(rect);
+            Canvas.SetLeft(baseRect, x);
+            Canvas.SetTop(baseRect, centerY - baseH / 2.0);
+            WaveformCanvas.Children.Add(baseRect);
+        }
+
+        double peakDeltaDb = LinearToDb(_currentItem.MasterPeakLinear) - LinearToDb(_currentItem.RawPeakLinear);
+        double rmsDeltaDb = LinearToDb(_currentItem.MasterRmsLinear) - LinearToDb(_currentItem.RawRmsLinear);
+        string pSign = peakDeltaDb >= 0 ? "+" : "";
+        string rSign = rmsDeltaDb >= 0 ? "+" : "";
+
+        if (boostedBars == 0 && cutBars == 0)
+        {
+            DiffStatsText.Text = "Identical Waveform (Bypass FX)";
+        }
+        else
+        {
+            DiffStatsText.Text = $"Peak Δ {pSign}{peakDeltaDb:0.0} dB · Energy Δ {rSign}{rmsDeltaDb:0.0} dB";
         }
     }
 }
+
+public readonly record struct AudioQcReport(double Lufs, double Peak, double Lra, int SampleRate, bool Valid);
 
 public class AudioTaskItem : INotifyPropertyChanged
 {
@@ -764,6 +1230,12 @@ public class AudioTaskItem : INotifyPropertyChanged
     public string FileName { get; set; } = "";
     public float[]? RawPeaks { get; set; }
     public float[]? MasterPeaks { get; set; }
+    public float RawPeakLinear { get; set; }
+    public float RawRmsLinear { get; set; }
+    public float MasterPeakLinear { get; set; }
+    public float MasterRmsLinear { get; set; }
+    public AudioQcReport? RawQc { get; set; }
+    public AudioQcReport? MasterQc { get; set; }
 
     private string _status = "";
     public string Status
