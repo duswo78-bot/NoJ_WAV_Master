@@ -37,6 +37,7 @@ public partial class MainWindow : Window
     private bool _isProcessing;
     private bool _settingsDirty;
     private bool _suppressAutoManual;
+    private bool _autoSwitchingToManual;
     private bool _pendingSwitchToAfter;
     private int _previewVersion;
     private int _previewFileSlot;
@@ -179,29 +180,118 @@ public partial class MainWindow : Window
 
     private void ModeManual_Checked(object sender, RoutedEventArgs e)
     {
+        if (!IsLoaded) return;
         if (ToggleRackBtn != null && ToggleRackBtn.IsChecked == false)
             ToggleRackBtn.IsChecked = true;
+
+        // If user clicked "Manual FX" card directly after "Convert Only" (where all FX were unchecked), restore base rack
+        if (!_autoSwitchingToManual &&
+            ChkAtmos.IsChecked != true && ChkEqCut.IsChecked != true && ChkLimiter.IsChecked != true &&
+            ChkLoudness.IsChecked != true && ChkWarmth.IsChecked != true && ChkReverb.IsChecked != true &&
+            ChkStereo.IsChecked != true && ChkPitch.IsChecked != true)
+        {
+            _suppressAutoManual = true;
+            try
+            {
+                ChkEqCut.IsChecked = true;
+                SldLowCut.Value = 20;
+                SldHighCut.Value = 18000;
+                ChkLimiter.IsChecked = true;
+                SldLimit.Value = -1.0;
+            }
+            finally
+            {
+                _suppressAutoManual = false;
+            }
+        }
+
         MarkSettingsChanged(switchToAfter: true);
+    }
+
+    private void SyncRackToEngineMode(object sender)
+    {
+        _suppressAutoManual = true;
+        try
+        {
+            if (ReferenceEquals(sender, ModeClean))
+            {
+                ChkAtmos.IsChecked = false;
+                ChkEqCut.IsChecked = true;
+                SldLowCut.Value = 20;
+                SldHighCut.Value = 18000;
+                ChkLimiter.IsChecked = true;
+                SldLimit.Value = -1.0;
+                ChkLoudness.IsChecked = false;
+                ChkWarmth.IsChecked = false;
+                ChkReverb.IsChecked = false;
+                ChkStereo.IsChecked = false;
+                ChkPitch.IsChecked = false;
+            }
+            else if (ReferenceEquals(sender, ModeLoud))
+            {
+                ChkAtmos.IsChecked = false;
+                ChkEqCut.IsChecked = true;
+                SldLowCut.Value = 20;
+                SldHighCut.Value = 18000;
+                ChkLimiter.IsChecked = true;
+                SldLimit.Value = -1.0;
+                ChkLoudness.IsChecked = true;
+                SldLufs.Value = -14;
+                ChkWarmth.IsChecked = false;
+                ChkReverb.IsChecked = false;
+                ChkStereo.IsChecked = false;
+                ChkPitch.IsChecked = false;
+            }
+            else if (ReferenceEquals(sender, ModeConvert))
+            {
+                ChkAtmos.IsChecked = false;
+                ChkEqCut.IsChecked = false;
+                ChkLimiter.IsChecked = false;
+                ChkLoudness.IsChecked = false;
+                ChkWarmth.IsChecked = false;
+                ChkReverb.IsChecked = false;
+                ChkStereo.IsChecked = false;
+                ChkPitch.IsChecked = false;
+            }
+        }
+        finally
+        {
+            _suppressAutoManual = false;
+        }
     }
 
     private void Setting_Changed(object sender, RoutedEventArgs e)
     {
         if (!IsLoaded) return;
         bool isModeChange = ReferenceEquals(sender, ModeClean) || ReferenceEquals(sender, ModeLoud) || ReferenceEquals(sender, ModeConvert);
+        if (isModeChange)
+        {
+            SyncRackToEngineMode(sender);
+        }
         MarkSettingsChanged(switchToAfter: isModeChange);
     }
 
     private void FxControl_Click(object sender, RoutedEventArgs e)
     {
         if (!IsLoaded || _suppressAutoManual) return;
-        if (ModeManual.IsChecked != true) ModeManual.IsChecked = true;
+        if (ModeManual.IsChecked != true)
+        {
+            _autoSwitchingToManual = true;
+            ModeManual.IsChecked = true;
+            _autoSwitchingToManual = false;
+        }
         MarkSettingsChanged(switchToAfter: true);
     }
 
     private void FxSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (!IsLoaded || _suppressAutoManual) return;
-        if (ModeManual.IsChecked != true) ModeManual.IsChecked = true;
+        if (ModeManual.IsChecked != true)
+        {
+            _autoSwitchingToManual = true;
+            ModeManual.IsChecked = true;
+            _autoSwitchingToManual = false;
+        }
         MarkSettingsChanged(switchToAfter: true);
     }
 
