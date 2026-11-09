@@ -1481,8 +1481,8 @@ public partial class MainWindow : Window
                 float absL = Math.Abs(left);
                 float absR = Math.Abs(right);
                 float framePeak = Math.Max(absL, absR);
-                float sideEnergy = Math.Abs(left - right) * 0.35f;
-                float effectiveSample = Math.Min(1.0f, framePeak + sideEnergy * 0.25f);
+                float sideEnergy = Math.Abs(left - right) * 0.50f;
+                float effectiveSample = framePeak + sideEnergy * 0.32f;
 
                 if (effectiveSample > maxPeak) maxPeak = effectiveSample;
                 if (framePeak > globalMaxPeak) globalMaxPeak = framePeak;
@@ -1495,8 +1495,8 @@ public partial class MainWindow : Window
             }
 
             float rms = count > 0 ? (float)Math.Sqrt(sumSq / count) : 0f;
-            float combined = 0.58f * maxPeak + 0.42f * Math.Min(1.0f, rms * 1.85f);
-            result[b] = Math.Clamp(combined, 0.04f, 1.0f);
+            float combined = 0.52f * maxPeak + 0.48f * (rms * 1.95f);
+            result[b] = Math.Clamp(combined, 0.02f, 2.5f);
         }
 
         float avgRms = totalFrames > 0 ? (float)Math.Sqrt(globalSumSq / totalFrames) : 0f;
@@ -1577,8 +1577,24 @@ public partial class MainWindow : Window
         if (raw == null || raw.Length == 0) return;
 
         double w = WaveformCanvas.ActualWidth > 0 ? WaveformCanvas.ActualWidth : 488;
-        double h = WaveformCanvas.ActualHeight > 0 ? WaveformCanvas.ActualHeight : 64;
+        double h = WaveformCanvas.ActualHeight > 0 ? WaveformCanvas.ActualHeight : 98;
         double centerY = h / 2.0;
+
+        var gridBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#151924"));
+        foreach (double offsetRatio in new[] { 0.38, -0.38, 0.76, -0.76 })
+        {
+            double gy = centerY + offsetRatio * (h / 2.0);
+            WaveformCanvas.Children.Add(new Line
+            {
+                X1 = 0,
+                Y1 = gy,
+                X2 = w,
+                Y2 = gy,
+                Stroke = gridBrush,
+                StrokeThickness = 1,
+                StrokeDashArray = [3, 3]
+            });
+        }
 
         var centerLine = new Line
         {
@@ -1586,15 +1602,15 @@ public partial class MainWindow : Window
             Y1 = centerY,
             X2 = w,
             Y2 = centerY,
-            Stroke = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1D2230")),
+            Stroke = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#202636")),
             StrokeThickness = 1
         };
         WaveformCanvas.Children.Add(centerLine);
 
         int count = raw.Length;
         double barSlot = w / count;
-        double barWidth = Math.Max(1.8, barSlot - 1.2);
-        double maxDrawH = Math.Max(12, h - 6);
+        double barWidth = Math.Max(2.0, barSlot - 1.1);
+        double maxDrawH = Math.Max(20, h - 6);
 
         bool hasMaster = master != null && master.Length == count;
         bool isAfterSelected = BtnAfter.IsChecked == true && hasMaster;
@@ -1606,8 +1622,8 @@ public partial class MainWindow : Window
 
             for (int i = 0; i < count; i++)
             {
-                double norm = Math.Clamp(raw[i] / rawMax, 0.05, 1.0);
-                double barH = Math.Max(3.0, norm * maxDrawH);
+                double norm = Math.Pow(Math.Clamp(raw[i] / rawMax, 0.03, 1.0), 0.80) * 0.80;
+                double barH = Math.Max(4.0, norm * maxDrawH);
                 var rect = new Rectangle
                 {
                     Width = barWidth,
@@ -1615,7 +1631,7 @@ public partial class MainWindow : Window
                     RadiusX = 1.2,
                     RadiusY = 1.2,
                     Fill = rawBrush,
-                    Opacity = 0.78
+                    Opacity = 0.82
                 };
                 Canvas.SetLeft(rect, i * barSlot + 0.5);
                 Canvas.SetTop(rect, centerY - barH / 2.0);
@@ -1629,7 +1645,10 @@ public partial class MainWindow : Window
         }
 
         float[] masterArr = master!;
-        float sharedScale = Math.Max(0.15f, Math.Max(raw.Max(), masterArr.Max()));
+        // Anchor scale to Raw peak with 22% headroom so After boosts visibly rise above Raw instead of compressing Raw down
+        float rawRefMax = Math.Max(0.15f, raw.Max());
+        float masterRefMax = Math.Max(0.15f, masterArr.Max());
+        float sharedScale = Math.Max(rawRefMax * 1.22f, masterRefMax * 1.04f);
 
         var baseBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(isAfterSelected ? "#323A52" : "#3A3248"));
         var boostBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4ADE80"));
@@ -1640,23 +1659,24 @@ public partial class MainWindow : Window
 
         for (int i = 0; i < count; i++)
         {
-            double rNorm = Math.Clamp(raw[i] / sharedScale, 0.04, 1.0);
-            double mNorm = Math.Clamp(masterArr[i] / sharedScale, 0.04, 1.0);
+            double rNorm = Math.Pow(Math.Clamp(raw[i] / sharedScale, 0.02, 1.0), 0.78);
+            double mNorm = Math.Pow(Math.Clamp(masterArr[i] / sharedScale, 0.02, 1.0), 0.78);
 
-            double rawH = Math.Max(3.0, rNorm * maxDrawH);
-            double masterH = Math.Max(3.0, mNorm * maxDrawH);
+            double rawH = Math.Max(4.0, rNorm * maxDrawH);
+            double masterH = Math.Max(4.0, mNorm * maxDrawH);
 
             double baseH = Math.Min(rawH, masterH);
             double rawDelta = masterArr[i] - raw[i];
             double absDelta = Math.Abs(rawDelta);
 
             double visualDiffH = 0;
-            if (absDelta >= 0.0025)
+            if (absDelta >= 0.0015)
             {
-                double magnified = (absDelta / sharedScale) * maxDrawH * 2.8;
-                visualDiffH = Math.Clamp(Math.Max(4.0, magnified), 4.0, maxDrawH - 3.0);
+                double relDelta = Math.Clamp(absDelta / rawRefMax, 0.0, 1.2);
+                double magnified = Math.Pow(relDelta, 0.58) * maxDrawH * 0.58;
+                visualDiffH = Math.Clamp(Math.Max(7.0, magnified), 7.0, maxDrawH - 4.0);
                 if (baseH + visualDiffH > maxDrawH)
-                    baseH = Math.Max(3.0, maxDrawH - visualDiffH);
+                    baseH = Math.Max(4.0, maxDrawH - visualDiffH);
             }
 
             double x = i * barSlot + 0.5;
@@ -1672,10 +1692,10 @@ public partial class MainWindow : Window
                 {
                     Width = barWidth,
                     Height = outerH,
-                    RadiusX = 1.2,
-                    RadiusY = 1.2,
+                    RadiusX = 1.3,
+                    RadiusY = 1.3,
                     Fill = isBoost ? boostBrush : cutBrush,
-                    Opacity = (isBoost == isAfterSelected) ? 1.0 : 0.88
+                    Opacity = (isBoost == isAfterSelected) ? 1.0 : 0.90
                 };
                 Canvas.SetLeft(diffRect, x);
                 Canvas.SetTop(diffRect, centerY - outerH / 2.0);
