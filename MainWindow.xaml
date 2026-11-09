@@ -1,9 +1,10 @@
 <Window x:Class="NoJ_WAV_Master.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="NoJ WAV Master v1.0.8" Height="815" Width="560"
+        Title="NoJ WAV Master v1.3.0" Height="815" Width="560"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
-        WindowStartupLocation="CenterScreen" FontFamily="Segoe UI Variable Display, Segoe UI">
+        WindowStartupLocation="CenterScreen" FontFamily="Segoe UI Variable Display, Segoe UI"
+        PreviewKeyDown="Window_PreviewKeyDown">
 
     <Window.Resources>
         <Style x:Key="PillRadio" TargetType="RadioButton">
@@ -83,6 +84,32 @@
             </Setter>
         </Style>
 
+        <Style x:Key="TrackDeleteBtn" TargetType="Button">
+            <Setter Property="Background" Value="#1E212D"/>
+            <Setter Property="Foreground" Value="#A5ACC0"/>
+            <Setter Property="BorderBrush" Value="#2C3142"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Width" Value="24"/>
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#361C26"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#F87171"/>
+                                <Setter Property="Foreground" Value="#F87171"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="CleanCheck" TargetType="CheckBox">
             <Setter Property="Foreground" Value="#D5D8E2"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -133,7 +160,7 @@
                     </Border>
                     <TextBlock Text="NoJ WAV Master" Foreground="#F3F4F6" FontSize="14.5" FontWeight="SemiBold" VerticalAlignment="Center"/>
                     <Border Background="#1D202A" CornerRadius="4" Padding="6,2" Margin="8,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="v1.0.8" Foreground="#7C85F2" FontSize="11" FontWeight="Medium"/>
+                        <TextBlock Text="v1.3.0" Foreground="#7C85F2" FontSize="11" FontWeight="Medium"/>
                     </Border>
                 </StackPanel>
 
@@ -210,7 +237,7 @@
                         </UniformGrid>
                     </StackPanel>
 
-                    <StackPanel Grid.Row="1" Margin="21,0,18,10">
+                    <StackPanel Grid.Row="1" Margin="21,0,18,8">
                         <TextBlock Text="TARGET FORMAT" Foreground="#5E6375" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,6"/>
                         <WrapPanel>
                             <RadioButton x:Name="FmtWav24" Content="WAV 24-bit" GroupName="Fmt" Style="{StaticResource PillRadio}" IsChecked="True" Checked="Setting_Changed" FontSize="11.5" FontWeight="Medium"/>
@@ -221,6 +248,16 @@
                             <RadioButton x:Name="FmtAiff" Content="AIFF" GroupName="Fmt" Style="{StaticResource PillRadio}" Checked="Setting_Changed" FontSize="11.5" FontWeight="Medium"/>
                             <RadioButton x:Name="FmtAac" Content="AAC" GroupName="Fmt" Style="{StaticResource PillRadio}" Checked="Setting_Changed" FontSize="11.5" FontWeight="Medium"/>
                         </WrapPanel>
+                        <Border Background="#141720" BorderBrush="#222634" BorderThickness="1" CornerRadius="8" Padding="11,6" Margin="0,2,3,0">
+                            <Grid>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <CheckBox x:Name="ChkTrimSilence" Content="Auto Trim Silence (앞뒤 무음 제거)" Style="{StaticResource CleanCheck}" Click="TrimFade_Click" FontSize="11.5" FontWeight="Medium" Margin="0,0,18,0"/>
+                                    <CheckBox x:Name="ChkFadeOut" Style="{StaticResource CleanCheck}" Click="TrimFade_Click" FontSize="11.5" FontWeight="Medium">
+                                        <TextBlock Text="{Binding ElementName=SldFadeOut, Path=Value, StringFormat={}Smooth Fade Out ({0:0.0}s 페이드 아웃)}" Foreground="#D5D8E2"/>
+                                    </CheckBox>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
                     </StackPanel>
 
                     <Border x:Name="DropZone" Grid.Row="2" Margin="21,0,21,10" Background="#12141A" BorderBrush="#252834" BorderThickness="1.5" CornerRadius="12"
@@ -246,6 +283,7 @@
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="*"/>
                                                                 <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
                                                             </Grid.ColumnDefinitions>
                                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                                 <Path Data="M8,5 L18,12 L8,19 Z" Fill="#7C85F2" Margin="0,0,10,0" VerticalAlignment="Center">
@@ -253,11 +291,19 @@
                                                                         <ScaleTransform ScaleX="0.65" ScaleY="0.65"/>
                                                                     </Path.LayoutTransform>
                                                                 </Path>
-                                                                <TextBlock Text="{Binding FileName}" Foreground="#E2E4EC" FontSize="12.5" TextTrimming="CharacterEllipsis" MaxWidth="310" VerticalAlignment="Center"/>
+                                                                <TextBlock Text="{Binding FileName}" Foreground="#E2E4EC" FontSize="12.5" TextTrimming="CharacterEllipsis" MaxWidth="260" VerticalAlignment="Center"/>
                                                             </StackPanel>
-                                                            <Border Grid.Column="1" Background="#202431" CornerRadius="5" Padding="8,3">
+                                                            <Border Grid.Column="1" Background="#202431" CornerRadius="5" Padding="8,3" Margin="0,0,6,0" VerticalAlignment="Center">
                                                                 <TextBlock Text="{Binding Status}" Foreground="{Binding StatusColor}" FontSize="11" FontWeight="SemiBold"/>
                                                             </Border>
+                                                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                                <Button Click="OpenTrackFolder_Click" Tag="{Binding}" ToolTip="파일 위치 열기 (Open Folder)" Width="24" Height="24" Style="{StaticResource IconBtn}" Margin="0,0,4,0">
+                                                                    <Path Data="M1,3 L5,3 L6.5,5 L13,5 L13,12 L1,12 Z" Stroke="#8E93A6" StrokeThickness="1.3" Fill="Transparent"/>
+                                                                </Button>
+                                                                <Button Click="RemoveTrack_Click" Tag="{Binding}" ToolTip="트랙 개별 삭제 (Del)" Style="{StaticResource TrackDeleteBtn}">
+                                                                    <TextBlock Text="✕" FontSize="11" FontWeight="Bold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0"/>
+                                                                </Button>
+                                                            </StackPanel>
                                                         </Grid>
                                                     </Border>
                                                     <ControlTemplate.Triggers>
@@ -302,7 +348,7 @@
                                 </StackPanel>
 
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                    <RadioButton x:Name="BtnBefore" Content="BEFORE (Raw)" GroupName="AB" Checked="AB_Changed" Cursor="Hand" Margin="0,0,4,0">
+                                    <RadioButton x:Name="BtnBefore" Content="BEFORE (Raw)" GroupName="AB" Checked="AB_Changed" Cursor="Hand" Margin="0,0,4,0" ToolTip="Switch to Raw Audio (Shortcut: Tab or B)">
                                         <RadioButton.Template>
                                             <ControlTemplate TargetType="RadioButton">
                                                 <Border x:Name="B" Background="#1A1D27" BorderBrush="#282C3B" BorderThickness="1" CornerRadius="6" Padding="9,5">
@@ -318,7 +364,7 @@
                                             </ControlTemplate>
                                         </RadioButton.Template>
                                     </RadioButton>
-                                    <RadioButton x:Name="BtnAfter" Content="AFTER (Master)" GroupName="AB" IsChecked="True" Checked="AB_Changed" Cursor="Hand">
+                                    <RadioButton x:Name="BtnAfter" Content="AFTER (Live FX)" GroupName="AB" IsChecked="True" Checked="AB_Changed" Cursor="Hand" ToolTip="Switch to Live FX Preview (Shortcut: Tab or B)">
                                         <RadioButton.Template>
                                             <ControlTemplate TargetType="RadioButton">
                                                 <Border x:Name="B" Background="#1A1D27" BorderBrush="#282C3B" BorderThickness="1" CornerRadius="6" Padding="9,5">
@@ -451,10 +497,36 @@
                 <Border x:Name="FxRackPanel" Grid.Column="1" Width="320" Visibility="Collapsed" BorderBrush="#222530" BorderThickness="1,0,0,0" Background="#101218" Padding="18,8,18,16">
                     <ScrollViewer VerticalScrollBarVisibility="Hidden">
                         <StackPanel>
-                            <Grid Margin="0,0,0,12">
+                            <Grid Margin="0,0,0,10">
                                 <TextBlock Text="MANUAL FX STUDIO RACK" Foreground="#7C85F2" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
                                 <Button Content="Reset" Click="ResetFx_Click" HorizontalAlignment="Right" Background="Transparent" Foreground="#686E82" BorderThickness="0" Cursor="Hand" FontSize="11"/>
                             </Grid>
+
+                            <Border Background="#161926" BorderBrush="#353D63" BorderThickness="1" CornerRadius="9" Padding="12,10" Margin="0,0,0,8">
+                                <StackPanel>
+                                    <Grid>
+                                        <CheckBox x:Name="ChkAtmos" Content="Dolby Atmos 3D Spatializer" Style="{StaticResource CleanCheck}" Click="FxControl_Click" FontWeight="SemiBold" FontSize="12"/>
+                                        <Border Background="#232946" BorderBrush="#4F5BD5" BorderThickness="1" CornerRadius="4" Padding="5,1" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                            <TextBlock Text="ATMOS 3D" Foreground="#9EA6F6" FontSize="9" FontWeight="Bold"/>
+                                        </Border>
+                                    </Grid>
+                                    <Grid Margin="0,8,0,0">
+                                        <TextBlock Text="Spatial 3D Depth (Elevation)" Foreground="#8E93A6" FontSize="11"/>
+                                        <TextBlock Text="{Binding ElementName=SldAtmosDepth, Path=Value, StringFormat={}{0:0}%}" Foreground="#D5D8E2" FontSize="11" HorizontalAlignment="Right"/>
+                                    </Grid>
+                                    <Slider x:Name="SldAtmosDepth" Minimum="0" Maximum="100" Value="50" ValueChanged="FxSlider_ValueChanged" Margin="0,4,0,6"/>
+                                    <Grid>
+                                        <TextBlock Text="Surround Expansion" Foreground="#8E93A6" FontSize="11"/>
+                                        <TextBlock Text="{Binding ElementName=SldAtmosSurround, Path=Value, StringFormat={}{0:0}%}" Foreground="#D5D8E2" FontSize="11" HorizontalAlignment="Right"/>
+                                    </Grid>
+                                    <Slider x:Name="SldAtmosSurround" Minimum="100" Maximum="220" Value="155" ValueChanged="FxSlider_ValueChanged" Margin="0,4,0,6"/>
+                                    <Grid>
+                                        <TextBlock Text="LFE Sub-Bass Boost (60Hz)" Foreground="#8E93A6" FontSize="11"/>
+                                        <TextBlock Text="{Binding ElementName=SldAtmosLfe, Path=Value, StringFormat={}+{0:0.0} dB}" Foreground="#D5D8E2" FontSize="11" HorizontalAlignment="Right"/>
+                                    </Grid>
+                                    <Slider x:Name="SldAtmosLfe" Minimum="0" Maximum="9.0" Value="3.5" TickFrequency="0.5" IsSnapToTickEnabled="True" ValueChanged="FxSlider_ValueChanged" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
 
                             <Border Background="#151821" BorderBrush="#222634" BorderThickness="1" CornerRadius="9" Padding="12,10" Margin="0,0,0,8">
                                 <StackPanel>
@@ -532,7 +604,7 @@
                                 </StackPanel>
                             </Border>
 
-                            <Border Background="#151821" BorderBrush="#222634" BorderThickness="1" CornerRadius="9" Padding="12,10">
+                            <Border Background="#151821" BorderBrush="#222634" BorderThickness="1" CornerRadius="9" Padding="12,10" Margin="0,0,0,8">
                                 <StackPanel>
                                     <CheckBox x:Name="ChkPitch" Content="Pitch &amp; Speed Shift" Style="{StaticResource CleanCheck}" Click="FxControl_Click" FontWeight="SemiBold" FontSize="12"/>
                                     <Grid Margin="0,8,0,0">
@@ -540,6 +612,22 @@
                                         <TextBlock Text="{Binding ElementName=SldPitch, Path=Value, StringFormat={}{0:+0;-0;0} st}" Foreground="#D5D8E2" FontSize="11" HorizontalAlignment="Right"/>
                                     </Grid>
                                     <Slider x:Name="SldPitch" Minimum="-6" Maximum="6" Value="0" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="FxSlider_ValueChanged" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Background="#151821" BorderBrush="#222634" BorderThickness="1" CornerRadius="9" Padding="12,10">
+                                <StackPanel>
+                                    <TextBlock Text="Silence Trim &amp; Fade Out Detail" Foreground="#D5D8E2" FontWeight="SemiBold" FontSize="12"/>
+                                    <Grid Margin="0,8,0,0">
+                                        <TextBlock Text="Silence Threshold (무음 기준)" Foreground="#8E93A6" FontSize="11"/>
+                                        <TextBlock Text="{Binding ElementName=SldTrimDb, Path=Value, StringFormat={}{0:0} dB}" Foreground="#D5D8E2" FontSize="11" HorizontalAlignment="Right"/>
+                                    </Grid>
+                                    <Slider x:Name="SldTrimDb" Minimum="-65" Maximum="-30" Value="-50" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="TrimFadeSlider_ValueChanged" Margin="0,4,0,6"/>
+                                    <Grid>
+                                        <TextBlock Text="Fade Out Duration (길이)" Foreground="#8E93A6" FontSize="11"/>
+                                        <TextBlock Text="{Binding ElementName=SldFadeOut, Path=Value, StringFormat={}{0:0.0} s}" Foreground="#D5D8E2" FontSize="11" HorizontalAlignment="Right"/>
+                                    </Grid>
+                                    <Slider x:Name="SldFadeOut" Minimum="0.5" Maximum="5.0" Value="2.0" TickFrequency="0.5" IsSnapToTickEnabled="True" ValueChanged="TrimFadeSlider_ValueChanged" Margin="0,4,0,0"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
